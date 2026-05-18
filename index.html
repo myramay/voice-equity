@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoiceEquity – Your Civic Document Assistant</title>
+  <style>
+    /* -----------------------------------------------------------------------
+       Base reset & CSS custom properties
+       Mobile-first: everything is a single column by default.
+    ----------------------------------------------------------------------- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:    #1a6fb5;
+      --blue-dk: #124d80;
+      --red:     #d94040;
+      --red-dk:  #a02828;
+      --green:   #28a745;
+      --bg:      #f4f7fb;
+      --card:    #ffffff;
+      --text:    #1a1a2e;
+      --muted:   #555;
+      --radius:  14px;
+      --shadow:  0 4px 20px rgba(0,0,0,.10);
+      --font:    'Segoe UI', Arial, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 18px;           /* Minimum 18 px per spec – accessibility */
+      line-height: 1.6;
+      padding: 16px;
+      min-height: 100vh;
+    }
+
+    /* -----------------------------------------------------------------------
+       Layout shell
+    ----------------------------------------------------------------------- */
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      padding: 24px 0 20px;
+    }
+
+    header h1 {
+      font-size: clamp(26px, 6vw, 42px);
+      color: var(--blue);
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 1rem;
+      margin-top: 6px;
+    }
+
+    /* -----------------------------------------------------------------------
+       Cards
+    ----------------------------------------------------------------------- */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: var(--blue-dk);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* -----------------------------------------------------------------------
+       Buttons – large and touch-friendly (min 48 px height)
+    ----------------------------------------------------------------------- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 14px 22px;
+      min-height: 54px;
+      transition: filter .15s, transform .1s;
+      width: 100%;
+      margin-top: 8px;
+    }
+    .btn:active { transform: scale(.97); }
+
+    .btn-blue  { background: var(--blue);  color: #fff; }
+    .btn-blue:hover  { filter: brightness(1.1); }
+
+    .btn-red   { background: var(--red);   color: #fff; }
+    .btn-red:hover   { filter: brightness(1.1); }
+    .btn-red.recording { background: #8b0000; animation: pulse 1s infinite; }
+
+    .btn-green { background: var(--green); color: #fff; }
+    .btn-green:hover { filter: brightness(1.1); }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(217,64,64,.5); }
+      50%       { box-shadow: 0 0 0 12px rgba(217,64,64,0); }
+    }
+
+    /* -----------------------------------------------------------------------
+       File upload – hidden input, styled label
+    ----------------------------------------------------------------------- */
+    #file-input { display: none; }
+
+    /* -----------------------------------------------------------------------
+       Image preview
+    ----------------------------------------------------------------------- */
+    #image-preview-wrapper {
+      display: none;
+      margin-top: 14px;
+      text-align: center;
+    }
+    #image-preview {
+      max-width: 100%;
+      max-height: 260px;
+      border-radius: 10px;
+      border: 2px solid #dce3ed;
+      object-fit: contain;
+    }
+    #remove-image {
+      display: block;
+      margin: 8px auto 0;
+      font-size: .85rem;
+      color: var(--red);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    /* -----------------------------------------------------------------------
+       Transcript display
+    ----------------------------------------------------------------------- */
+    #transcript-box {
+      background: #eef3fb;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: .95rem;
+      color: var(--muted);
+      min-height: 40px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* -----------------------------------------------------------------------
+       Text input
+    ----------------------------------------------------------------------- */
+    textarea {
+      width: 100%;
+      border: 2px solid #dce3ed;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-family: var(--font);
+      padding: 12px;
+      resize: vertical;
+      min-height: 90px;
+      margin-top: 8px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    textarea:focus { border-color: var(--blue); }
+
+    /* -----------------------------------------------------------------------
+       Language selector
+    ----------------------------------------------------------------------- */
+    .lang-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .lang-row label { font-weight: 600; white-space: nowrap; }
+    select {
+      font-size: 1rem;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 2px solid #dce3ed;
+      background: #fff;
+      flex: 1;
+      min-width: 160px;
+    }
+
+    /* -----------------------------------------------------------------------
+       Loading spinner
+    ----------------------------------------------------------------------- */
+    #spinner {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 0;
+    }
+    .spinner-ring {
+      width: 52px; height: 52px;
+      border: 6px solid #dce3ed;
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #spinner p { color: var(--muted); font-size: .95rem; }
+
+    /* -----------------------------------------------------------------------
+       Answer card
+    ----------------------------------------------------------------------- */
+    #answer-card { display: none; }
+
+    #answer-text {
+      font-size: 1.15rem;
+      line-height: 1.75;
+      white-space: pre-wrap;
+    }
+
+    /* Highlight the "Next Step" section in green */
+    #answer-text .next-step {
+      background: #eafaf1;
+      border-left: 4px solid var(--green);
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-top: 14px;
+      font-weight: 600;
+    }
+
+    /* -----------------------------------------------------------------------
+       Error banner
+    ----------------------------------------------------------------------- */
+    #error-banner {
+      display: none;
+      background: #fde8e8;
+      border: 2px solid var(--red);
+      border-radius: 10px;
+      padding: 14px 18px;
+      color: var(--red-dk);
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    /* -----------------------------------------------------------------------
+       Footer
+    ----------------------------------------------------------------------- */
+    footer {
+      text-align: center;
+      font-size: .8rem;
+      color: #aaa;
+      padding: 24px 0 12px;
+    }
+
+    /* -----------------------------------------------------------------------
+       Responsive tweak for wider screens
+    ----------------------------------------------------------------------- */
+    @media (min-width: 600px) {
+      .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .two-col .btn { margin-top: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ======================================================================
+       HEADER
+  ====================================================================== -->
+  <header>
+    <h1>🗳️ VoiceEquity</h1>
+    <p>Your civic document assistant — photo a form, ask a question, get a plain answer.</p>
+  </header>
+
+  <!-- ======================================================================
+       ERROR BANNER
+  ====================================================================== -->
+  <div id="error-banner" role="alert"></div>
+
+  <!-- ======================================================================
+       STEP 1 – Upload document image
+  ====================================================================== -->
+  <div class="card">
+    <h2>📷 Step 1: Upload a Document Photo</h2>
+    <p style="color:var(--muted);font-size:.95rem;margin-bottom:8px;">
+      Take or choose a photo of the form, sign, notice, or letter you need help with.
+    </p>
+
+    <!-- Hidden file input; triggered by the visible button below -->
+    <input type="file" id="file-input" accept="image/*" capture="environment" />
+
+    <label for="file-input" class="btn btn-blue" role="button" tabindex="0"
+           onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
+      📂 Choose / Take Photo
+    </label>
+
+    <!-- Image preview shown after the user selects a file -->
+    <div id="image-preview-wrapper">
+      <img id="image-preview" alt="Document preview" />
+      <button id="remove-image" onclick="removeImage()">✕ Remove image</button>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       STEP 2 – Ask your question (voice or text)
+  ====================================================================== -->
+  <div class="card">
+    <h2>🎤 Step 2: Ask Your Question</h2>
+
+    <!-- Language selector – feeds a hint to the model & TTS -->
+    <div class="lang-row" style="margin-bottom:14px;">
+      <label for="lang-select">Language:</label>
+      <select id="lang-select" onchange="onLanguageChange()">
+        <option value="auto">🌐 Auto-detect</option>
+        <option value="en">🇺🇸 English</option>
+        <option value="es">🇲🇽 Español</option>
+        <option value="fr">🇫🇷 Français</option>
+        <option value="ar">🇸🇦 العربية</option>
+        <option value="hi">🇮🇳 हिन्दी</option>
+        <option value="zh">🇨🇳 中文</option>
+        <option value="pt">🇧🇷 Português</option>
+        <option value="ru">🇷🇺 Русский</option>
+        <option value="ko">🇰🇷 한국어</option>
+        <option value="vi">🇻🇳 Tiếng Việt</option>
+        <option value="tl">🇵🇭 Filipino</option>
+        <option value="so">🇸🇴 Soomaali</option>
+        <option value="am">🇪🇹 አማርኛ</option>
+        <option value="ht">🇭🇹 Kreyòl</option>
+        <option value="sw">🇰🇪 Kiswahili</option>
+      </select>
+    </div>
+
+    <!-- Voice recording button – hold to record -->
+    <button id="record-btn" class="btn btn-red"
+            onmousedown="startRecording()" onmouseup="stopRecording()"
+            ontouchstart="startRecording(event)" ontouchend="stopRecording(event)">
+      🎙️ Hold to Speak
+    </button>
+
+    <!-- Live transcript display – appears while / after recording -->
+    <div id="transcript-box" aria-live="polite"></div>
+
+    <!-- Text fallback so users who prefer typing can still use the app -->
+    <textarea id="question-input"
+              placeholder="Or type your question here…"
+              aria-label="Type your question"></textarea>
+  </div>
+
+  <!-- ======================================================================
+       SUBMIT BUTTON
+  ====================================================================== -->
+  <button class="btn btn-green" onclick="submitQuery()" style="margin-bottom:20px;">
+    ✅ Get My Answer
+  </button>
+
+  <!-- ======================================================================
+       LOADING SPINNER
+  ====================================================================== -->
+  <div id="spinner" role="status" aria-live="polite">
+    <div class="spinner-ring"></div>
+    <p>Reading your document…</p>
+  </div>
+
+  <!-- ======================================================================
+       ANSWER CARD
+  ====================================================================== -->
+  <div class="card" id="answer-card">
+    <h2>💬 Answer</h2>
+    <div id="answer-text" aria-live="polite"></div>
+
+    <!-- Re-read the answer aloud on demand -->
+    <button class="btn btn-blue" onclick="speakAnswer()" style="margin-top:18px;">
+      🔊 Read Aloud Again
+    </button>
+  </div>
+
+  <footer>
+    VoiceEquity — built to make civic documents accessible for everyone.
+  </footer>
+
+</div><!-- /container -->
+
+<script>
+/* ==========================================================================
+   VoiceEquity Frontend JavaScript
+   All communication is via the FastAPI /analyze endpoint.
+   TTS is handled by the native browser speechSynthesis API.
+   Voice input is handled by the SpeechRecognition API (Web Speech API).
+========================================================================== */
+
+// ---------------------------------------------------------------------------
+// Global state
+// ---------------------------------------------------------------------------
+let imageBase64  = "";         // Base64-encoded image chosen by the user
+let imageMime    = "image/jpeg"; // MIME type of the chosen image
+let recognition  = null;       // SpeechRecognition instance (created on demand)
+let isRecording  = false;      // Whether the mic is currently active
+let lastAnswer   = "";         // Most recent model answer (used by "Read Aloud Again")
+let currentLang  = "auto";     // Currently selected language code
+
+// ---------------------------------------------------------------------------
+// Image upload handling
+// ---------------------------------------------------------------------------
+
+/**
+ * Fired when the user selects a file.
+ * Converts the image to a Base64 string for transmission to the backend,
+ * and shows a preview so the user can verify the right image was chosen.
+ */
+document.getElementById("file-input").addEventListener("change", function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  imageMime = file.type || "image/jpeg";
+
+  const reader = new FileReader();
+  reader.onload = function (ev) {
+    const dataUrl = ev.target.result;
+    // Strip the "data:<mime>;base64," prefix so the backend receives raw base64
+    imageBase64 = dataUrl.split(",")[1];
+
+    // Show the preview thumbnail
+    const preview = document.getElementById("image-preview");
+    preview.src = dataUrl;
+    document.getElementById("image-preview-wrapper").style.display = "block";
+  };
+  reader.readAsDataURL(file);
+});
+
+/**
+ * Remove the currently selected image and reset the file input.
+ */
+function removeImage() {
+  imageBase64 = "";
+  imageMime   = "image/jpeg";
+  document.getElementById("file-input").value = "";
+  document.getElementById("image-preview-wrapper").style.display = "none";
+  document.getElementById("image-preview").src = "";
+}
+
+// ---------------------------------------------------------------------------
+// Voice recording (Web Speech API)
+// ---------------------------------------------------------------------------
+
+/**
+ * Initialise and start the SpeechRecognition API.
+ * Called on mousedown / touchstart of the "Hold to Speak" button.
+ * Sets `interimResults` so the user sees live feedback as they speak.
+ *
+ * @param {Event} [e] - Optional touch event (prevents default scroll behaviour).
+ */
+function startRecording(e) {
+  if (e && e.cancelable) e.preventDefault(); // Prevent touch scroll / zoom
+
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) {
+    showError("Voice input is not supported by your browser. Please type your question.");
+    return;
+  }
+
+  if (isRecording) return; // Guard against double-start
+  isRecording = true;
+
+  recognition = new SpeechRec();
+  recognition.continuous     = false;
+  recognition.interimResults = true;
+
+  // Use the selected language for better transcription accuracy.
+  // Falls back to browser default when "auto" is chosen.
+  if (currentLang !== "auto") {
+    recognition.lang = currentLang;
+  }
+
+  const transcriptBox = document.getElementById("transcript-box");
+  transcriptBox.style.display = "block";
+  transcriptBox.textContent   = "🎙️ Listening…";
+
+  const btn = document.getElementById("record-btn");
+  btn.classList.add("recording");
+  btn.textContent = "🔴 Recording… (release to stop)";
+
+  /**
+   * Handle partial and final transcription results.
+   * Interim results are shown in italic so the user knows they are tentative.
+   */
+  recognition.onresult = function (event) {
+    let interim = "", final = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const t = event.results[i][0].transcript;
+      if (event.results[i].isFinal) final += t;
+      else interim += t;
+    }
+    transcriptBox.textContent = final || interim;
+    if (final) {
+      // Merge into the text input so the user can edit before submitting
+      const ta = document.getElementById("question-input");
+      ta.value = (ta.value ? ta.value + " " : "") + final;
+    }
+  };
+
+  recognition.onerror = function (event) {
+    showError("Microphone error: " + event.error + ". Please type your question instead.");
+    resetRecordButton();
+  };
+
+  recognition.onend = function () {
+    resetRecordButton();
+  };
+
+  recognition.start();
+}
+
+/**
+ * Stop recording when the user releases the button.
+ * The onend callback above will fire automatically after recognition stops.
+ *
+ * @param {Event} [e]
+ */
+function stopRecording(e) {
+  if (e && e.cancelable) e.preventDefault();
+  if (!isRecording || !recognition) return;
+  recognition.stop();
+  isRecording = false;
+}
+
+/**
+ * Reset the record button to its idle state after recording ends.
+ */
+function resetRecordButton() {
+  isRecording = false;
+  const btn = document.getElementById("record-btn");
+  btn.classList.remove("recording");
+  btn.textContent = "🎙️ Hold to Speak";
+}
+
+// ---------------------------------------------------------------------------
+// Language selector
+// ---------------------------------------------------------------------------
+
+/**
+ * Sync the global language variable whenever the selector changes.
+ * This affects: (a) SpeechRecognition lang, (b) TTS voice selection,
+ * (c) the language hint sent to the backend.
+ */
+function onLanguageChange() {
+  currentLang = document.getElementById("lang-select").value;
+}
+
+// ---------------------------------------------------------------------------
+// Submit query to backend
+// ---------------------------------------------------------------------------
+
+/**
+ * Gather the image, question, and language hint, POST them to /analyze,
+ * and display / speak the returned answer.
+ *
+ * Shows a loading spinner while waiting and hides it when done.
+ */
+async function submitQuery() {
+  clearError();
+
+  // Collect the user's question from the text area or transcript
+  const question = document.getElementById("question-input").value.trim();
+  if (!question && !imageBase64) {
+    showError("Please upload an image OR type / speak a question first.");
+    return;
+  }
+  if (!question) {
+    showError("Please type or speak a question about the document.");
+    return;
+  }
+
+  // Show spinner, hide previous answer
+  setLoading(true);
+  document.getElementById("answer-card").style.display = "none";
+
+  const payload = {
+    image_b64:     imageBase64,
+    question:      question,
+    language_hint: currentLang,
+    mime_type:     imageMime,
+  };
+
+  try {
+    const response = await fetch("/analyze", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.detail || "Server error");
+    }
+
+    const data = await response.json();
+    displayAnswer(data.answer, data.detected_lang);
+
+  } catch (err) {
+    showError("Something went wrong: " + err.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Answer display & TTS
+// ---------------------------------------------------------------------------
+
+/**
+ * Render the model's answer and automatically read it aloud.
+ * The "Next Step:" section is highlighted with a green left border.
+ *
+ * @param {string} text  - The plain-language answer from the model.
+ * @param {string} lang  - Detected/confirmed language code for TTS.
+ */
+function displayAnswer(text, lang) {
+  lastAnswer = text;
+
+  // Split on any variant of "Next Step:" so we can style it separately.
+  // This regex handles translated variants like "Siguiente paso:", "Prochaine étape:", etc.
+  const nextStepPattern = /(\n?)((?:[A-Za-zÀ-ÿА-яء-يऀ-ॿ一-鿿]+\s?){1,4}:(?:\s))/;
+  let html = escapeHtml(text);
+
+  // Look for the last colon-headed section (the "Next Step" block)
+  const parts = html.split(/\n(?=[^\n]+:\s)/);
+  if (parts.length > 1) {
+    const body     = parts.slice(0, -1).join("\n");
+    const nextStep = parts[parts.length - 1];
+    html = body + '\n<div class="next-step">' + nextStep + '</div>';
+  }
+
+  // Replace plain newlines outside the next-step div with <br>
+  html = html.replace(/\n/g, "<br>");
+
+  const answerDiv = document.getElementById("answer-text");
+  answerDiv.innerHTML = html;
+  document.getElementById("answer-card").style.display = "block";
+
+  // Scroll the answer into view on mobile
+  answerDiv.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Auto-speak the answer
+  speakText(text, lang);
+}
+
+/**
+ * Speak the last received answer aloud. Called by the "Read Aloud Again" button.
+ */
+function speakAnswer() {
+  if (lastAnswer) speakText(lastAnswer, currentLang);
+}
+
+/**
+ * Use the browser's speechSynthesis API to read text aloud.
+ * Attempts to pick a voice that matches the target language.
+ * Falls back to the default system voice if no match is found.
+ *
+ * @param {string} text  - Text to speak.
+ * @param {string} lang  - BCP-47 language tag or our short code (e.g. "es", "fr").
+ */
+function speakText(text, lang) {
+  if (!window.speechSynthesis) return; // Browser doesn't support TTS — silent fail
+
+  window.speechSynthesis.cancel(); // Stop any in-progress speech
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate  = 0.92; // Slightly slower for comprehension
+  utterance.pitch = 1.0;
+
+  // Map our short codes to BCP-47 tags for better voice matching
+  const langMap = {
+    auto: "en-US", en: "en-US", es: "es-MX", fr: "fr-FR",
+    ar: "ar-SA", hi: "hi-IN", zh: "zh-CN", pt: "pt-BR",
+    ru: "ru-RU", ko: "ko-KR", vi: "vi-VN", tl: "fil-PH",
+    so: "so-SO", am: "am-ET", ht: "ht-HT", sw: "sw-KE",
+  };
+
+  const bcp47 = langMap[lang] || lang || "en-US";
+  utterance.lang = bcp47;
+
+  // Try to pick a matching installed voice
+  const voices  = window.speechSynthesis.getVoices();
+  const matched = voices.find(v => v.lang.startsWith(bcp47.split("-")[0]));
+  if (matched) utterance.voice = matched;
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// Voices load asynchronously; refresh them once they arrive
+if (window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = function () {
+    window.speechSynthesis.getVoices(); // pre-load
+  };
+}
+
+// ---------------------------------------------------------------------------
+// UI helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Toggle the loading spinner visibility and disable the submit button
+ * to prevent duplicate requests.
+ *
+ * @param {boolean} loading
+ */
+function setLoading(loading) {
+  document.getElementById("spinner").style.display = loading ? "flex" : "none";
+  document.querySelector(".btn-green").disabled = loading;
+}
+
+/**
+ * Display an error message in the banner above the cards.
+ *
+ * @param {string} msg
+ */
+function showError(msg) {
+  const banner = document.getElementById("error-banner");
+  banner.textContent = "⚠️ " + msg;
+  banner.style.display = "block";
+  banner.scrollIntoView({ behavior: "smooth" });
+}
+
+/** Hide and clear the error banner. */
+function clearError() {
+  const banner = document.getElementById("error-banner");
+  banner.style.display = "none";
+  banner.textContent   = "";
+}
+
+/**
+ * Escape HTML special characters to prevent XSS when injecting model output.
+ *
+ * @param {string} str
+ * @returns {string}
+ */
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+</script>
+</body>
+</html>
